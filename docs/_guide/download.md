@@ -4,6 +4,12 @@ description: Get ZapFast for Linux, macOS, or Windows, with install instructions
 nav_order: 1
 ---
 
+**ZapFast Windows Compat:** la variante personal para Windows 11 con Intel N95
+y controlador básico de Microsoft está disponible en
+[los Releases del fork](https://github.com/SSParzival/zapfast-windows-compat/releases/tag/v0.19.0-dx12.3).
+Usa DX12/WARP sin exigir OpenGL 2.1. Las instrucciones y descargas históricas
+de las secciones siguientes pertenecen al proyecto upstream.
+
 {% assign v = site.zapfast_version %}
 {% assign name = site.release_asset_prefix %}
 {% assign app = site.release_app_name %}

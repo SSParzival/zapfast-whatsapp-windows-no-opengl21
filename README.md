@@ -18,6 +18,12 @@ La versión validada es **0.19.0-dx12.3**. Incluye recuperación al caducar el Q
 y mejoras en las listas de chats y la búsqueda de contactos. Conserva el
 protocolo, el archivo cifrado y las funciones del proyecto original.
 
+**[Descargar ZIP para Windows x64](https://github.com/SSParzival/zapfast-windows-compat/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip)**
+· [SHA256](https://github.com/SSParzival/zapfast-windows-compat/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip.sha256)
+· [Notas y capturas](https://github.com/SSParzival/zapfast-windows-compat/releases/tag/v0.19.0-dx12.3).
+La publicación se identifica como una versión preliminar de esta adaptación.
+Extrae el ZIP y abre `zapfast.exe`.
+
 Para compilar y validar en Windows, con Rust y las herramientas C++ instaladas:
 
 ```powershell
