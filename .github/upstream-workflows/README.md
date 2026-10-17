@@ -1,11 +1,11 @@
-# Automatizaciones originales conservadas como referencia
+# Original automation retained for reference
 
-Estos archivos proceden de upstream. Están fuera de `.github/workflows/`
-y no son workflows activos de este fork.
+These files come from upstream. They are outside `.github/workflows/` and
+are not active workflows in this fork.
 
-La adaptación se valida y compila en Windows con
-`scripts/build-windows-compat.ps1`. La publicación es manual en el repositorio
-del fork, siguiendo `FORK.md`.
+Build and validate the Windows adaptation with
+`scripts/build-windows-compat.ps1`. Releases are published manually in the
+fork repository, as described in `FORK.md`.
 
-Se conservan para que una futura automatización pueda revisarse y adaptarse
-de forma explícita al fork.
+The original implementations are kept so any future automation can be
+reviewed and explicitly adapted to the fork.

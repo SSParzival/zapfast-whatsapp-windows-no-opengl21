@@ -4,11 +4,11 @@ description: Get ZapFast for Linux, macOS, or Windows, with install instructions
 nav_order: 1
 ---
 
-**ZapFast para WhatsApp en Windows sin OpenGL 2.1:** la variante personal para Windows 11 con Intel N95
-y controlador básico de Microsoft está disponible en
-[los Releases del fork](https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21/releases/tag/v0.19.0-dx12.3).
-Usa DX12/WARP sin exigir OpenGL 2.1. Las instrucciones y descargas históricas
-de las secciones siguientes pertenecen al proyecto upstream.
+**Windows without OpenGL 2.1:** the personal Windows 11 fork for Intel N95
+and Microsoft Basic Display Adapter is available from
+[the fork Releases](https://github.com/SSParzival/zapfast-whatsapp-windows-no-opengl21/releases/tag/v0.19.0-dx12.3).
+It uses DX12/WARP. The historical instructions and downloads in the following
+sections belong to the upstream project.
 
 {% assign v = site.zapfast_version %}
 {% assign name = site.release_asset_prefix %}

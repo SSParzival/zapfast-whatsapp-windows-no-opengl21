@@ -1,28 +1,27 @@
-# ZapFast para WhatsApp en Windows sin OpenGL 2.1 0.19.0-dx12.3
+# ZapFast: WhatsApp for Windows without OpenGL 2.1
 
-Fork personal de ZapFast para un PC Windows 11 Pro x64 con Intel N95,
-unos 16 GB de RAM y controlador básico de Microsoft.
-Crédito de asistencia de esta adaptación: GPT-6.1 Sol (medium).
-ZapFast original: Carmine Paolino y colaboradores, https://github.com/crmne/zapfast.
-Repositorio del fork: https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21.
+Version 0.19.0-dx12.3. A personal compatibility fork for a Windows 11 Pro x64
+PC with Intel N95, about 16 GB RAM, and Microsoft Basic Display Adapter.
+AI assistance credit for this adaptation: GPT-6.1 Sol (medium).
+Original ZapFast: Carmine Paolino and contributors, https://github.com/crmne/zapfast.
+Fork: https://github.com/SSParzival/zapfast-whatsapp-windows-no-opengl21.
 
-Abre `zapfast.exe`. Windows dibuja con Direct3D 12 sin exigir un contexto
-OpenGL 2.1. `start-software-rendering.cmd` fuerza WARP por CPU.
+Open `zapfast.exe`. Windows renders through Direct3D 12 without requiring an
+OpenGL 2.1 context. `start-software-rendering.cmd` forces CPU WARP rendering.
 
-Vincula el teléfono desde WhatsApp > Dispositivos vinculados. Si el QR caduca,
-pulsa Reintentar; la recuperación conserva la sesión y el archivo local.
-La autorización de la cuenta se completa en el teléfono.
+Link your phone through WhatsApp > Linked devices. If the QR expires, click
+Retry. Recovery preserves the stored session and local archive. Account
+authorization is completed on the phone.
 
-La variante conserva las funciones del cliente original y mejora las listas
-de chats y la búsqueda de contactos. Las actualizaciones oficiales están
-desactivadas para mantener la adaptación gráfica. Actualiza esta variante
-manualmente desde el repositorio del fork.
+The fork retains the original client's features and improves chat-list
+copying and contact search. Official updates are disabled to preserve the
+graphics adaptation. Update this variant manually from the fork repository.
 
-Consulta `windows-compatibility.md`, `pairing-recovery.md` y
-`performance-windows.md` para ver cambios, pruebas y límites. La recepción y
-renovación del QR se comprobaron con un perfil temporal en .2; esta versión
-conserva ese código. Los casos gráficos y las mediciones usan datos ficticios.
-El envío de mensajes reales requiere la comprobación del titular.
+Read `windows-compatibility.md`, `pairing-recovery.md`, and
+`performance-windows.md` for changes, checks, and validation limits. QR receipt
+and renewal were checked with a temporary profile in .2; this variant retains
+that pairing code. Graphics and performance checks use synthetic data.
+Real message delivery requires verification by the account owner.
 
-Se conservan `LICENSE` y `THIRD-PARTY-NOTICES.md`. Este fork es independiente
-del proyecto original, de WhatsApp y de Meta.
+`LICENSE` and `THIRD-PARTY-NOTICES.md` are preserved. This fork is independent
+of the original project, WhatsApp, and Meta.

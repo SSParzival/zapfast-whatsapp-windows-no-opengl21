@@ -1,54 +1,50 @@
-# ZapFast para WhatsApp en Windows sin OpenGL 2.1
+# ZapFast: WhatsApp for Windows without OpenGL 2.1
 
-**Cliente nativo y no oficial de WhatsApp para Windows 11, adaptado para
-funcionar con el controlador básico de pantalla de Microsoft.**
+**A native, unofficial WhatsApp client for Windows 11, adapted to work with
+Microsoft Basic Display Adapter.**
 
-**Cambio principal:** el motor gráfico de Windows pasa a **Direct3D 12/WARP**,
-eliminando la exigencia de un contexto **OpenGL 2.1** de la versión base.
-WARP permite dibujar mediante la CPU del PC cuando el controlador gráfico
-disponible no ofrece el soporte necesario para esa versión de OpenGL.
+**Main change:** the Windows renderer uses **Direct3D 12/WARP**, removing the
+base version's requirement for an **OpenGL 2.1** context. WARP can render on
+the CPU when the installed display driver cannot provide that OpenGL support.
 
-Es un fork personal de [ZapFast](https://github.com/crmne/zapfast), preparado
-y comprobado para el equipo descrito abajo.
+This is a small personal fork of [ZapFast](https://github.com/crmne/zapfast),
+prepared and tested for the PC described below.
 
-Repositorio del fork: <https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21>.
+**AI assistance credit for this adaptation: GPT-6.1 Sol (medium).**
+The original client is by Carmine Paolino and the ZapFast contributors.
 
-**Crédito de asistencia de esta adaptación: GPT-6.1 Sol (medium).**
-El cliente original es obra de Carmine Paolino y los colaboradores de ZapFast.
+Tested PC: Windows 11 Pro x64, Intel N95, about 16 GB RAM, Microsoft Basic
+Display Adapter, and a 1280x800 desktop at 100% scaling. Other computers and
+operating systems need their own validation.
 
-El equipo probado usa Windows 11 Pro x64, Intel N95, unos 16 GB de RAM,
-controlador básico de pantalla de Microsoft y escritorio 1280x800 al 100 %.
-El alcance es la compatibilidad con ese equipo; otros equipos y sistemas
-necesitan sus propias comprobaciones.
+The validated version is **0.19.0-dx12.3**. It also improves recovery after QR
+expiration, chat-list copying, and contact search. It retains the original
+protocol, encrypted archive, and application features.
 
-La versión validada es **0.19.0-dx12.3**. Incluye recuperación al caducar el QR
-y mejoras en las listas de chats y la búsqueda de contactos. Conserva el
-protocolo, el archivo cifrado y las funciones del proyecto original.
+**[Download Windows x64 ZIP](https://github.com/SSParzival/zapfast-whatsapp-windows-no-opengl21/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip)**
+| [SHA256](https://github.com/SSParzival/zapfast-whatsapp-windows-no-opengl21/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip.sha256)
+| [Release notes and screenshot](https://github.com/SSParzival/zapfast-whatsapp-windows-no-opengl21/releases/tag/v0.19.0-dx12.3).
+This compatibility build is published as a prerelease. Extract the ZIP and
+open `zapfast.exe`, or use `start-software-rendering.cmd` to force CPU WARP.
 
-**[Descargar ZIP para Windows x64](https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip)**
-· [SHA256](https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip.sha256)
-· [Notas y capturas](https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21/releases/tag/v0.19.0-dx12.3).
-La publicación se identifica como una versión preliminar de esta adaptación.
-Extrae el ZIP y abre `zapfast.exe`.
-
-Para compilar y validar en Windows, con Rust y las herramientas C++ instaladas:
+To build and validate on Windows, install Rust and the required C++ tools,
+then run:
 
 ```powershell
 .\scripts\build-windows-compat.ps1
 ```
 
-El resultado queda en `dist/windows-compat`. Abre `zapfast.exe` o
-`start-software-rendering.cmd` para forzar WARP por CPU. Vincula el teléfono
-desde **WhatsApp > Dispositivos vinculados**. Las actualizaciones oficiales
-están desactivadas en esta variante para conservar la adaptación gráfica.
+Output: `dist/windows-compat`. Link your phone through **WhatsApp > Linked
+devices**. Official updates are disabled in this variant to preserve its
+Windows graphics adaptation; update this fork manually.
 
-Detalles: [compatibilidad](docs/windows-compatibility.md),
-[vinculación](docs/pairing-recovery.md), [rendimiento](docs/performance-windows.md)
-y [preparación para publicar](FORK.md). Las suites de Windows pasaron con
-1.867 y 1.869 pruebas, cero fallos, y siete casos gráficos con datos ficticios.
-Los informes distinguen lo probado; la autorización desde el teléfono y el
-envío de mensajes reales requieren la comprobación del titular.
+Details: [compatibility](docs/windows-compatibility.md),
+[pairing recovery](docs/pairing-recovery.md), [performance](docs/performance-windows.md),
+and [fork publication](FORK.md). The Windows suites passed 1,867 and 1,869
+tests with zero failures, plus seven synthetic graphics checks. The reports
+identify what was tested. Account authorization and real message delivery
+still require verification by the account owner.
 
-Se conserva el [README original](README.upstream.md), la [licencia MIT](LICENSE)
-y los [avisos de terceros](THIRD-PARTY-NOTICES.md). Este fork es independiente
-del proyecto original, de WhatsApp y de Meta.
+The [original README](README.upstream.md), [MIT license](LICENSE), and
+[third-party notices](THIRD-PARTY-NOTICES.md) are preserved. This fork is
+independent of the original project, WhatsApp, and Meta.

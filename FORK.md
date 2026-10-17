@@ -1,73 +1,73 @@
-# Publicar este fork
+# About this fork and its publication
 
-Nombre: **ZapFast para WhatsApp en Windows sin OpenGL 2.1** (`zapfast-whatsapp-windows-sin-opengl21`).
-Repositorio: <https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21>.
-Descripción: «Fork personal de ZapFast para Windows 11 con Intel N95 y
-controlador básico de Microsoft, usando DX12/WARP sin exigir OpenGL 2.1».
+**ZapFast: WhatsApp for Windows without OpenGL 2.1**
 
-Crédito de asistencia para las modificaciones de esta adaptación:
-**GPT-6.1 Sol (medium)**. Este crédito se refiere al fork. El cliente original
-es obra de Carmine Paolino y los colaboradores de ZapFast.
+Repository: <https://github.com/SSParzival/zapfast-whatsapp-windows-no-opengl21>.
 
-## Procedencia y alcance
+A personal Windows 11 compatibility fork for an Intel N95 PC using Microsoft
+Basic Display Adapter. The main change is Direct3D 12/WARP rendering without
+requiring an OpenGL 2.1 context.
 
-- Proyecto original: <https://github.com/crmne/zapfast>.
-- Base: `021c568639159b8dca7a76eb4adc6f5d8cac5a11`, paquete 0.19.0 con trabajo
-  upstream aún no publicado en ese momento.
-- Variante comprobada: `0.19.0-dx12.3`, Windows x64. Los cambios de gráficos,
-  recuperación de vinculación y rendimiento están documentados en `docs/`.
-- Adaptación personal para el PC descrito en el README, con el protocolo,
-  las funciones y la licencia del proyecto original.
-- Las pruebas reciben y renuevan un QR; autorizar la cuenta y enviar mensajes
-  reales requieren la comprobación del titular. Las mediciones de rendimiento
-  son sintéticas y utilizan un ejecutable de pruebas en modo debug.
+AI assistance credit for the adaptation: **GPT-6.1 Sol (medium)**. This credit
+covers the fork's modifications. The original client is by Carmine Paolino
+and the ZapFast contributors.
 
-## Repositorio de destino
+## Provenance and scope
 
-Este repositorio es un fork de `crmne/zapfast` en la cuenta `SSParzival`.
-La rama `main` conserva el historial original y fija el árbol de código
-validado para este PC, basado en `021c568639159b8dca7a76eb4adc6f5d8cac5a11`.
-Los cambios posteriores de upstream se mantienen en el historial, sin
-incorporarlos al código de esta adaptación. La publicación añade un commit
-normal sobre la rama del fork; no necesita reescribir su historial remoto.
+- Original project: <https://github.com/crmne/zapfast>.
+- Source baseline: `021c568639159b8dca7a76eb4adc6f5d8cac5a11`, package 0.19.0
+  with some then-unreleased upstream work.
+- Validated variant: `0.19.0-dx12.3`, Windows x64. Graphics, pairing recovery,
+  and performance changes are documented in `docs/`.
+- The original protocol, features, license, and notices are retained.
+- Pairing checks received and renewed QR codes using a temporary profile.
+  Account authorization and real message delivery require the owner's phone.
+  Performance numbers are synthetic, isolated-stage measurements from a
+  debug test executable, not whole-application release timings.
 
-Esta copia local conserva el remoto original como `upstream` y el fork
-como `origin`. Para obtener otra copia:
+## Repository and history
+
+This is a GitHub fork of `crmne/zapfast` under `SSParzival`. Its `main` branch
+preserves the upstream history and pins the source tree validated for this
+PC. Upstream changes after the tested baseline remain in history but are not
+incorporated into this compatibility snapshot. Publication adds a normal
+commit to the fork's main branch without rewriting its remote history.
+
+The local checkout uses `origin` for this fork and `upstream` for the original
+project. To obtain another checkout:
 
 ```powershell
-git clone https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21.git
-cd zapfast-whatsapp-windows-sin-opengl21
+git clone https://github.com/SSParzival/zapfast-whatsapp-windows-no-opengl21.git
+cd zapfast-whatsapp-windows-no-opengl21
 git remote add upstream https://github.com/crmne/zapfast.git
 git remote -v
 ```
 
-Conserva los cambios de esta adaptación en `main` y el historial existente, sin forzar
-ni reescribir commits de upstream. Mantén `LICENSE`, `THIRD-PARTY-NOTICES.md`
-y los avisos de los recursos distribuidos.
+Keep compatibility changes on `main` and preserve the existing history.
+Retain `LICENSE`, `THIRD-PARTY-NOTICES.md`, and the notices for distributed assets.
 
-## Publicación sencilla
+## Simple manual publication
 
-Las automatizaciones heredadas se conservan inactivas en
-`.github/upstream-workflows/`. Compila y valida con
-`scripts/build-windows-compat.ps1`; este fork utiliza publicación manual.
+Inherited automation is preserved, inactive, in `.github/upstream-workflows/`.
+Build and validate with `scripts/build-windows-compat.ps1`. This fork uses
+manual releases, and GitHub Actions is disabled for this repository.
 
-Para distribuir un ejecutable, crea una publicación manual en Releases de tu
-fork después de subir a `main` el código validado. Identifica la versión local,
-el equipo probado y los límites de validación. Empaqueta el contenido de
-`dist/windows-compat` y adjunta el ZIP con su SHA256.
+After pushing validated source to `main`, create a manual release identifying
+the local version, tested hardware, and validation limits. Package the contents
+of `dist/windows-compat` and attach the ZIP and its SHA256.
 
-El ejecutable validado de esta versión conserva este SHA256:
+The validated executable has this SHA256, unchanged by presentation or
+English documentation updates:
 
 ```text
 1eddcb1af1e957d0766b38154ba1ea31a6fbad9a1ad064ee797dc5b075023235
 ```
 
-Incluye únicamente el ejecutable, el lanzador, README, licencias, informes
-públicos y checksums. Cachés, respaldos, datos de cuentas, registros y capturas
-locales quedan fuera del historial. Revisa los archivos antes de añadirlos al
-commit, incluso si existen exclusiones en `.gitignore`. Las capturas adjuntas
-a una publicación deben mostrar solo datos ficticios.
+Include only the executable, launcher, README, licenses, public reports, and
+checksums. Keep caches, backups, account data, logs, and local captures out of
+the source history. Review staged files even when exclusions are present in
+`.gitignore`. Release screenshots must contain synthetic data only.
 
-La documentación web y las recetas históricas de upstream se conservan como
-referencia; sus descargas corresponden al proyecto original. Para esta
-adaptación, utiliza el README y los Releases del fork.
+The inherited website and packaging recipes remain upstream references;
+their official downloads belong to the original project. Use this fork's
+README and Releases for the Windows compatibility adaptation.
