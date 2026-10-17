@@ -1,7 +1,7 @@
 # Publicar este fork
 
-Nombre: **ZapFast Windows Compat** (`zapfast-windows-compat`).
-Repositorio: <https://github.com/SSParzival/zapfast-windows-compat>.
+Nombre: **ZapFast para WhatsApp en Windows sin OpenGL 2.1** (`zapfast-whatsapp-windows-sin-opengl21`).
+Repositorio: <https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21>.
 Descripción: «Fork personal de ZapFast para Windows 11 con Intel N95 y
 controlador básico de Microsoft, usando DX12/WARP sin exigir OpenGL 2.1».
 
@@ -35,8 +35,8 @@ Esta copia local conserva el remoto original como `upstream` y el fork
 como `origin`. Para obtener otra copia:
 
 ```powershell
-git clone https://github.com/SSParzival/zapfast-windows-compat.git
-cd zapfast-windows-compat
+git clone https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21.git
+cd zapfast-whatsapp-windows-sin-opengl21
 git remote add upstream https://github.com/crmne/zapfast.git
 git remote -v
 ```

@@ -1,10 +1,10 @@
-# ZapFast Windows Compat 0.19.0-dx12.3
+# ZapFast para WhatsApp en Windows sin OpenGL 2.1 0.19.0-dx12.3
 
 Fork personal de ZapFast para un PC Windows 11 Pro x64 con Intel N95,
 unos 16 GB de RAM y controlador básico de Microsoft.
 Crédito de asistencia de esta adaptación: GPT-6.1 Sol (medium).
 ZapFast original: Carmine Paolino y colaboradores, https://github.com/crmne/zapfast.
-Repositorio del fork: https://github.com/SSParzival/zapfast-windows-compat.
+Repositorio del fork: https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21.
 
 Abre `zapfast.exe`. Windows dibuja con Direct3D 12 sin exigir un contexto
 OpenGL 2.1. `start-software-rendering.cmd` fuerza WARP por CPU.

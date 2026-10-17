@@ -1,10 +1,17 @@
-# ZapFast Windows Compat
+# ZapFast para WhatsApp en Windows sin OpenGL 2.1
 
-Un fork personal y sencillo de [ZapFast](https://github.com/crmne/zapfast),
-creado para que funcione en este PC sin exigir un contexto OpenGL 2.1.
-La adaptación utiliza **Direct3D 12/WARP** en Windows.
+**Cliente nativo y no oficial de WhatsApp para Windows 11, adaptado para
+funcionar con el controlador básico de pantalla de Microsoft.**
 
-Repositorio del fork: <https://github.com/SSParzival/zapfast-windows-compat>.
+**Cambio principal:** el motor gráfico de Windows pasa a **Direct3D 12/WARP**,
+eliminando la exigencia de un contexto **OpenGL 2.1** de la versión base.
+WARP permite dibujar mediante la CPU del PC cuando el controlador gráfico
+disponible no ofrece el soporte necesario para esa versión de OpenGL.
+
+Es un fork personal de [ZapFast](https://github.com/crmne/zapfast), preparado
+y comprobado para el equipo descrito abajo.
+
+Repositorio del fork: <https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21>.
 
 **Crédito de asistencia de esta adaptación: GPT-6.1 Sol (medium).**
 El cliente original es obra de Carmine Paolino y los colaboradores de ZapFast.
@@ -18,9 +25,9 @@ La versión validada es **0.19.0-dx12.3**. Incluye recuperación al caducar el Q
 y mejoras en las listas de chats y la búsqueda de contactos. Conserva el
 protocolo, el archivo cifrado y las funciones del proyecto original.
 
-**[Descargar ZIP para Windows x64](https://github.com/SSParzival/zapfast-windows-compat/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip)**
-· [SHA256](https://github.com/SSParzival/zapfast-windows-compat/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip.sha256)
-· [Notas y capturas](https://github.com/SSParzival/zapfast-windows-compat/releases/tag/v0.19.0-dx12.3).
+**[Descargar ZIP para Windows x64](https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip)**
+· [SHA256](https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21/releases/download/v0.19.0-dx12.3/ZapFast-0.19.0-dx12.3-windows-x64.zip.sha256)
+· [Notas y capturas](https://github.com/SSParzival/zapfast-whatsapp-windows-sin-opengl21/releases/tag/v0.19.0-dx12.3).
 La publicación se identifica como una versión preliminar de esta adaptación.
 Extrae el ZIP y abre `zapfast.exe`.
 
