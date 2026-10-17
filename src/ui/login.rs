@@ -81,8 +81,14 @@ fn body(app: &mut App, ui: &mut egui::Ui) {
         LinkStatus::Starting | LinkStatus::Connecting => {
             busy(ui, palette.accent, "Connecting to WhatsApp…");
         }
-        LinkStatus::Connected | LinkStatus::Disconnected { .. } => {
+        LinkStatus::Connected => {
             busy(ui, palette.accent, "Linked. Waiting for your chats…");
+        }
+        LinkStatus::Disconnected { .. } => {
+            busy(ui, palette.accent, "Connection interrupted. Reconnecting…");
+            if theme::pill_button(ui, &palette, "Try again", false).clicked() {
+                app.actions.push(Action::Reconnect);
+            }
         }
         LinkStatus::LoggedOut => {
             theme::icon(ui, Icon::Smartphone, 28.0, palette.warning);
@@ -149,6 +155,9 @@ fn body(app: &mut App, ui: &mut egui::Ui) {
                 qr_view(app, ui, &qr);
             } else {
                 busy(ui, palette.accent, "Waiting for a code from WhatsApp…");
+                if theme::pill_button(ui, &palette, "Request a new code", false).clicked() {
+                    app.actions.push(Action::Reconnect);
+                }
             }
         }
     }

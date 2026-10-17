@@ -193,11 +193,7 @@ async fn fetch_attachment(
         .map_err(|error| error.to_string())?;
     let (temporary, file) = temporary_attachment_file(path)?;
     let result = client
-        .download_to_writer(
-            downloadable,
-            LimitedWriter::new(file, limit),
-            Default::default(),
-        )
+        .download_to_writer(downloadable, LimitedWriter::new(file, limit))
         .await;
     match result {
         Ok(writer) => {
@@ -582,7 +578,14 @@ fn device_name() -> String {
 
 /// App version in WhatsApp device-property format.
 fn app_version() -> wa::device_props::AppVersion {
-    let mut parts = env!("CARGO_PKG_VERSION")
+    device_version(env!("CARGO_PKG_VERSION"))
+}
+
+fn device_version(version: &str) -> wa::device_props::AppVersion {
+    let mut parts = version
+        .split(['-', '+'])
+        .next()
+        .unwrap_or(version)
         .split('.')
         .map(|part| part.parse::<u32>().ok());
     {
@@ -719,6 +722,10 @@ pub async fn run(
         lid_to_pn: HashMap::new(),
         contacts: HashMap::new(),
         status: LinkStatus::Starting,
+        link_generation: 0,
+        pair_request: 0,
+        link_deadline: None,
+        pair_code_deadline: None,
         pairing_phone: None,
         pair_code: None,
         qr: None,
@@ -814,6 +821,9 @@ pub async fn run(
             }
             Some(event) = wa_events.recv() => match event {
                 RuntimeEvent::WhatsApp(event) => worker.handle_wa_event(event).await,
+                RuntimeEvent::Link { generation, event } => {
+                    worker.handle_link_event(generation, event).await;
+                }
                 RuntimeEvent::MessageRemoval { generation, event } => {
                     worker.handle_session_deletion(generation, event).await;
                 }
@@ -881,6 +891,10 @@ pub async fn run(
 
 enum RuntimeEvent {
     WhatsApp(Arc<wa_events::Event>),
+    Link {
+        generation: u64,
+        event: Arc<wa_events::Event>,
+    },
     MessageRemoval {
         generation: u64,
         event: Arc<wa_events::Event>,
@@ -985,6 +999,7 @@ fn privacy_backoff(attempts: u32) -> Duration {
 struct UiEvents {
     sender: mpsc::UnboundedSender<RuntimeEvent>,
     generation: u64,
+    link_generation: u64,
 }
 
 impl wa_events::EventHandler for UiEvents {
@@ -995,6 +1010,25 @@ impl wa_events::EventHandler for UiEvents {
         ) {
             RuntimeEvent::MessageRemoval {
                 generation: self.generation,
+                event,
+            }
+        } else if matches!(
+            event.as_ref(),
+            wa_events::Event::PairingQrCode(_)
+                | wa_events::Event::PairingCode(_)
+                | wa_events::Event::PairingCodeError(_)
+                | wa_events::Event::PairingCodeRefresh(_)
+                | wa_events::Event::PairingQrCodesExhausted(_)
+                | wa_events::Event::PairSuccess(_)
+                | wa_events::Event::Connected(_)
+                | wa_events::Event::Disconnected(_)
+                | wa_events::Event::LoggedOut(_)
+                | wa_events::Event::ConnectFailure(_)
+                | wa_events::Event::ClientOutdated(_)
+                | wa_events::Event::TemporaryBan(_)
+        ) {
+            RuntimeEvent::Link {
+                generation: self.link_generation,
                 event,
             }
         } else {
@@ -1109,6 +1143,10 @@ struct Worker {
     lid_to_pn: HashMap<String, String>,
     contacts: HashMap<String, Contact>,
     status: LinkStatus,
+    link_generation: u64,
+    pair_request: u64,
+    link_deadline: Option<Instant>,
+    pair_code_deadline: Option<Instant>,
     pairing_phone: Option<String>,
     pair_code: Option<String>,
     qr: Option<String>,
@@ -1840,6 +1878,27 @@ impl Worker {
 
     fn set_status(&mut self, status: LinkStatus) {
         if self.status != status {
+            if !matches!(
+                &status,
+                LinkStatus::Unlinked {
+                    pair_code: Some(_),
+                    ..
+                }
+            ) {
+                self.pair_code_deadline = None;
+            }
+            self.link_deadline = match &status {
+                LinkStatus::Starting
+                | LinkStatus::Connecting
+                | LinkStatus::LoggedOut
+                | LinkStatus::Disconnected { .. } => Some(Instant::now() + Duration::from_secs(60)),
+                LinkStatus::Unlinked {
+                    qr: None,
+                    pair_code: None,
+                    pairing_phone: None,
+                } => Some(Instant::now() + Duration::from_secs(60)),
+                _ => None,
+            };
             log::info!("link: {}", status.log_label());
             if matches!(status, LinkStatus::Connected) {
                 // The phone may have history for us again.
@@ -1870,6 +1929,18 @@ impl Worker {
     /// system does not report the wake yet), or that has received nothing
     /// for longer than a working one can. See `link_watch`.
     fn watch_link(&mut self) {
+        if self
+            .pair_code_deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            self.expire_phone_code();
+        }
+        if self
+            .link_deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
+            self.set_status(LinkStatus::Failed("WhatsApp did not provide a linking code or finish connecting in time. Check your internet connection and try again.".to_owned()));
+        }
         let client = self
             .client
             .clone()
@@ -1905,6 +1976,33 @@ impl Worker {
             self.syncing = syncing;
             self.emit(Event::Syncing(syncing));
         }
+    }
+
+    async fn handle_link_event(&mut self, generation: u64, event: Arc<wa_events::Event>) {
+        if generation == self.link_generation {
+            self.handle_wa_event(event).await;
+        }
+    }
+
+    fn pairing_failure_status(&mut self) {
+        if self.qr.is_some() {
+            self.set_status(self.unlinked());
+        } else {
+            self.set_status(LinkStatus::Failed(
+                "Could not obtain a linking code. Try again to request a new code.".to_owned(),
+            ));
+        }
+    }
+
+    fn expire_phone_code(&mut self) {
+        self.pair_request = self.pair_request.wrapping_add(1);
+        self.pair_code = None;
+        self.pairing_phone = None;
+        self.pair_code_deadline = None;
+        self.set_status(LinkStatus::Failed(
+            "The phone linking code is no longer valid. Try again to request a new code."
+                .to_owned(),
+        ));
     }
 
     fn unlinked(&self) -> LinkStatus {
@@ -2340,6 +2438,11 @@ impl Worker {
     }
 
     async fn start_bot(&mut self) {
+        self.link_generation = self.link_generation.wrapping_add(1);
+        self.pair_request = self.pair_request.wrapping_add(1);
+        self.qr = None;
+        self.pair_code = None;
+        self.pairing_phone = None;
         let path = self.dirs.session_db();
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -2386,6 +2489,7 @@ impl Worker {
             .with_event_handler(UiEvents {
                 sender,
                 generation: self.privacy_generation,
+                link_generation: self.link_generation,
             })
             .build()
             .await;
@@ -2653,6 +2757,8 @@ impl Worker {
     }
 
     async fn stop_bot(&mut self) {
+        self.link_generation = self.link_generation.wrapping_add(1);
+        self.pair_request = self.pair_request.wrapping_add(1);
         self.client = None;
         // A batch still going belongs to the session that was sending it, and
         // every send is its own task: one can report its tick after this
@@ -3169,9 +3275,18 @@ impl Worker {
                 self.set_status(status);
             }
             E::PairingCode(code) => {
+                if self.pairing_phone.is_none() {
+                    return;
+                }
                 self.pair_code = Some(code.code.clone());
                 let status = self.unlinked();
                 self.set_status(status);
+                self.pair_code_deadline = Some(Instant::now() + code.timeout);
+            }
+            E::PairingCodeRefresh(_) => {
+                if self.pairing_phone.is_some() {
+                    self.expire_phone_code();
+                }
             }
             E::PairingCodeError(error) => {
                 self.pair_code = None;
@@ -3180,20 +3295,24 @@ impl Worker {
                     "Could not link by phone number: {}",
                     error.error
                 )));
-                let status = self.unlinked();
-                self.set_status(status);
+                self.pair_request = self.pair_request.wrapping_add(1);
+                self.pairing_failure_status();
             }
             E::PairingQrCodesExhausted(exhausted) => {
                 self.qr = None;
-                let status = self.unlinked();
-                self.set_status(status);
-                if exhausted.disconnected
-                    && let Some(client) = self.client.clone()
-                {
-                    tokio::spawn(async move { client.reconnect_immediately().await });
+                if exhausted.disconnected {
+                    self.pair_request = self.pair_request.wrapping_add(1);
+                    self.pair_code = None;
+                    self.pairing_phone = None;
+                    self.set_status(LinkStatus::Failed(
+                        "The linking codes expired. Try again to request a new code.".to_owned(),
+                    ));
+                } else {
+                    self.set_status(self.unlinked());
                 }
             }
             E::PairSuccess(pair) => {
+                self.pair_request = self.pair_request.wrapping_add(1);
                 self.qr = None;
                 self.pair_code = None;
                 self.pairing_phone = None;
@@ -7324,36 +7443,47 @@ impl Worker {
                     return;
                 };
                 self.pairing_phone = Some(phone.clone());
+                self.pair_request = self.pair_request.wrapping_add(1);
+                let generation = self.pair_request;
                 self.pair_code = None;
                 let status = self.unlinked();
                 self.set_status(status);
                 let commands = self.commands.clone();
                 tokio::spawn(async move {
-                    let result = client
-                        .pair_with_code(PairCodeOptions {
+                    let result = tokio::time::timeout(
+                        Duration::from_secs(30),
+                        client.pair_with_code(PairCodeOptions {
                             phone_number: phone,
                             ..Default::default()
-                        })
-                        .await
-                        .map_err(|error| error.to_string());
-                    let _ = commands.send(Command::PairCode { result });
+                        }),
+                    )
+                    .await
+                    .map_err(|_| "WhatsApp did not answer the code request in time".to_owned())
+                    .and_then(|result| result.map_err(|error| error.to_string()));
+                    let _ = commands.send(Command::PairCode { generation, result });
                 });
             }
-            Command::PairCode { result } => match result {
-                Ok(code) => {
-                    self.pair_code = Some(code);
-                    let status = self.unlinked();
-                    self.set_status(status);
+            Command::PairCode { generation, result } => {
+                if generation != self.pair_request || self.pairing_phone.is_none() {
+                    return;
                 }
-                Err(error) => {
-                    self.pairing_phone = None;
-                    self.emit(Event::Error(format!(
-                        "Could not link by phone number: {error}"
-                    )));
-                    let status = self.unlinked();
-                    self.set_status(status);
+                match result {
+                    Ok(code) => {
+                        self.pair_code = Some(code);
+                        let status = self.unlinked();
+                        self.set_status(status);
+                    }
+                    Err(error) => {
+                        self.pairing_phone = None;
+                        self.pair_code = None;
+                        self.pair_request = self.pair_request.wrapping_add(1);
+                        self.emit(Event::Error(format!(
+                            "Could not link by phone number: {error}"
+                        )));
+                        self.pairing_failure_status();
+                    }
                 }
-            },
+            }
             Command::Unlink => {
                 if let Some(client) = self.client.clone() {
                     client.logout().await;
@@ -7375,9 +7505,21 @@ impl Worker {
                 self.emit(Event::AccountRemoved);
             }
             Command::Reconnect => {
-                if let Some(client) = self.client.clone() {
+                // A stopped client cannot be revived, and an unlinked retry
+                // needs fresh QR rotation. Keep the same device store.
+                if let Some(client) = self.client.clone().filter(|client| {
+                    !client.shutdown_signal().is_fired()
+                        && matches!(
+                            self.status,
+                            LinkStatus::Connected
+                                | LinkStatus::Disconnected { .. }
+                                | LinkStatus::Connecting
+                        )
+                }) {
+                    self.set_status(LinkStatus::Connecting);
                     tokio::spawn(async move { client.reconnect_immediately().await });
                 } else {
+                    self.stop_bot().await;
                     self.start_bot().await;
                 }
             }
@@ -16518,6 +16660,10 @@ mod receipt_tests {
             lid_to_pn: HashMap::new(),
             contacts: HashMap::new(),
             status: LinkStatus::Connected,
+            link_generation: 0,
+            pair_request: 0,
+            link_deadline: None,
+            pair_code_deadline: None,
             pairing_phone: None,
             pair_code: None,
             qr: None,
@@ -18947,6 +19093,208 @@ mod receipt_tests {
         );
     }
 
+    #[tokio::test]
+    async fn expired_pairing_has_a_retryable_failure_instead_of_an_empty_spinner() {
+        let (mut worker, _, _, _) = worker();
+        worker.qr = Some("synthetic-qr".into());
+        worker
+            .handle_wa_event(Arc::new(wa_events::Event::PairingQrCodesExhausted(
+                wa_events::PairingQrCodesExhausted::builder()
+                    .disconnected(true)
+                    .build(),
+            )))
+            .await;
+        assert!(worker.qr.is_none());
+        assert!(matches!(worker.status, LinkStatus::Failed(_)));
+        assert!(worker.link_deadline.is_none());
+    }
+
+    /// Uses a fresh synthetic profile, never the installed account. No codes
+    /// are printed and no account is linked or messages sent.
+    #[tokio::test]
+    #[ignore = "requires a live WhatsApp connection and a full QR expiration cycle"]
+    async fn live_pairing_expiration_and_retry() {
+        let (mut worker, _, _, mut runtime) = worker();
+        worker.me_pn = None;
+        worker.start_bot().await;
+        let first = tokio::time::timeout(Duration::from_secs(60), async {
+            while let Some(event) = runtime.recv().await {
+                if let RuntimeEvent::Link { generation, event } = event
+                    && generation == worker.link_generation
+                {
+                    let qr = matches!(event.as_ref(), wa_events::Event::PairingQrCode(_));
+                    worker.handle_wa_event(event).await;
+                    if qr {
+                        return true;
+                    }
+                }
+            }
+            false
+        })
+        .await;
+        if first != Ok(true) {
+            worker.stop_bot().await;
+            panic!("Fresh profile did not receive a QR in 60 seconds");
+        }
+        eprintln!("Live probe: fresh QR received (payload withheld).");
+        let expired = tokio::time::timeout(Duration::from_secs(190), async {
+            while let Some(event) = runtime.recv().await {
+                if let RuntimeEvent::Link { generation, event } = event
+                    && generation == worker.link_generation
+                {
+                    let expired =
+                        matches!(event.as_ref(), wa_events::Event::PairingQrCodesExhausted(_));
+                    worker.handle_wa_event(event).await;
+                    if expired {
+                        return true;
+                    }
+                }
+            }
+            false
+        })
+        .await;
+        if expired != Ok(true) {
+            worker.stop_bot().await;
+            panic!("QR expiration was not reported");
+        }
+        assert!(matches!(worker.status, LinkStatus::Failed(_)));
+        worker.handle_command(Command::Reconnect).await;
+        let retried = tokio::time::timeout(Duration::from_secs(60), async {
+            while let Some(event) = runtime.recv().await {
+                if let RuntimeEvent::Link { generation, event } = event
+                    && generation == worker.link_generation
+                    && matches!(event.as_ref(), wa_events::Event::PairingQrCode(_))
+                {
+                    return true;
+                }
+            }
+            false
+        })
+        .await;
+        worker.stop_bot().await;
+        assert_eq!(retried, Ok(true), "Retry did not produce a new QR");
+        eprintln!("Live probe: QR expired and retry produced a fresh QR (payloads withheld).");
+    }
+
+    #[tokio::test]
+    async fn qr_expiration_preserves_an_outstanding_phone_code() {
+        let (mut worker, _, _, _) = worker();
+        worker.qr = Some("synthetic-qr".into());
+        worker.pair_code = Some("TESTCODE".into());
+        worker.pairing_phone = Some("15550000000".into());
+        worker
+            .handle_wa_event(Arc::new(wa_events::Event::PairingQrCodesExhausted(
+                wa_events::PairingQrCodesExhausted::builder()
+                    .disconnected(false)
+                    .build(),
+            )))
+            .await;
+        assert!(matches!(
+            worker.status,
+            LinkStatus::Unlinked {
+                pair_code: Some(_),
+                ..
+            }
+        ));
+        assert_eq!(worker.pair_code.as_deref(), Some("TESTCODE"));
+    }
+
+    #[tokio::test]
+    async fn stale_phone_code_cannot_replace_a_new_attempt() {
+        let (mut worker, _, _, _) = worker();
+        worker.pair_request = 2;
+        worker.pairing_phone = Some("15550000000".into());
+        worker
+            .handle_command(Command::PairCode {
+                generation: 1,
+                result: Ok("OLDCODE".into()),
+            })
+            .await;
+        assert!(worker.pair_code.is_none());
+        worker
+            .handle_command(Command::PairCode {
+                generation: 2,
+                result: Ok("NEWCODE".into()),
+            })
+            .await;
+        assert_eq!(worker.pair_code.as_deref(), Some("NEWCODE"));
+    }
+
+    #[tokio::test]
+    async fn retired_connection_cannot_restore_its_qr_after_retry() {
+        let (mut worker, _, _, _) = worker();
+        worker.link_generation = 2;
+        worker.set_status(LinkStatus::Connecting);
+        let qr = wa_events::PairingQrCode::builder()
+            .code("synthetic-old-qr".into())
+            .timeout(Duration::from_secs(20))
+            .build();
+        worker
+            .handle_link_event(1, Arc::new(wa_events::Event::PairingQrCode(qr)))
+            .await;
+        assert!(worker.qr.is_none());
+        assert_eq!(worker.status, LinkStatus::Connecting);
+    }
+
+    #[test]
+    fn connecting_without_an_answer_has_a_deadline() {
+        let (mut worker, _, _, _) = worker();
+        worker.set_status(LinkStatus::Connecting);
+        assert!(worker.link_deadline.is_some());
+        worker.link_deadline = Some(Instant::now() - Duration::from_secs(1));
+        worker.watch_link();
+        assert!(matches!(worker.status, LinkStatus::Failed(_)));
+    }
+
+    #[tokio::test]
+    async fn phone_codes_retire_on_expiration_or_server_refresh() {
+        for refresh in [false, true] {
+            let (mut worker, _, _, _) = worker();
+            worker.pairing_phone = Some("15550000000".into());
+            worker.pair_request = 4;
+            worker
+                .handle_wa_event(Arc::new(wa_events::Event::PairingCode(
+                    wa_events::PairingCode::builder()
+                        .code("TESTCODE".into())
+                        .timeout(Duration::from_secs(1))
+                        .build(),
+                )))
+                .await;
+            assert!(worker.pair_code_deadline.is_some());
+            if refresh {
+                worker
+                    .handle_wa_event(Arc::new(wa_events::Event::PairingCodeRefresh(
+                        wa_events::PairingCodeRefresh::builder()
+                            .force_manual(true)
+                            .build(),
+                    )))
+                    .await;
+            } else {
+                worker.pair_code_deadline = Some(Instant::now() - Duration::from_secs(1));
+                worker.watch_link();
+            }
+            assert!(matches!(worker.status, LinkStatus::Failed(_)));
+            assert!(worker.pair_code.is_none());
+            assert!(worker.pairing_phone.is_none());
+            worker
+                .handle_command(Command::PairCode {
+                    generation: 4,
+                    result: Ok("OLDCODE".into()),
+                })
+                .await;
+            assert!(worker.pair_code.is_none());
+        }
+    }
+
+    #[test]
+    fn custom_release_sends_all_three_device_version_components() {
+        let version = device_version("0.19.0-dx12.2+local");
+        assert_eq!(
+            (version.primary, version.secondary, version.tertiary),
+            (Some(0), Some(19), Some(0))
+        );
+    }
+
     #[test]
     fn history_archive_state_applies_until_the_phone_sends_its_own() {
         let (mut worker, _events, _inbox, _wa) = worker();
@@ -20244,6 +20592,7 @@ mod chat_removal_tests {
         let (mut worker, events, _, _) = receipt_tests::worker();
         let (sender, mut inbox) = mpsc::unbounded_channel();
         let old = UiEvents {
+            link_generation: 0,
             sender: sender.clone(),
             generation: 0,
         };
@@ -20275,6 +20624,7 @@ mod chat_removal_tests {
         worker.apply_history(history(CHAT, &[100, 200]), true);
         assert_eq!(stored(&worker, CHAT), ["m100", "m200"]);
         let current = UiEvents {
+            link_generation: 0,
             sender,
             generation: 1,
         };

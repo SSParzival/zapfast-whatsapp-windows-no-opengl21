@@ -11,6 +11,9 @@ pub use fastframe_update::{
 };
 use fastframe_update::{MacConfig, ReqwestTransport, UpdateConfig};
 
+/// Official Windows updates would replace this compatibility renderer.
+pub const SELF_UPDATE_ENABLED: bool = !cfg!(windows);
+
 /// ZapFast's releases and the names its installations have had.
 pub const CONFIG: UpdateConfig = UpdateConfig {
     // Cask and bundle names from before the rename. This also accepts
@@ -36,6 +39,10 @@ pub const CONFIG: UpdateConfig = UpdateConfig {
 
 /// An updater on the proxy-aware reqwest client.
 pub fn updater() -> anyhow::Result<Updater> {
+    anyhow::ensure!(
+        SELF_UPDATE_ENABLED,
+        "This Direct3D compatibility build cannot install official OpenGL updates"
+    );
     let mut builder = reqwest::blocking::Client::builder();
     if let Some(proxy) = crate::proxy::reqwest_proxy() {
         builder = builder.proxy(proxy);
@@ -55,7 +62,11 @@ mod tests {
     }
 
     #[test]
-    fn the_updater_starts_on_github() {
-        assert!(updater().unwrap().source().is_github());
+    fn official_updates_are_available_only_on_supported_builds() {
+        if SELF_UPDATE_ENABLED {
+            assert!(updater().unwrap().source().is_github());
+        } else {
+            assert!(updater().is_err());
+        }
     }
 }

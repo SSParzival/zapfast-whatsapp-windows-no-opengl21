@@ -6,6 +6,9 @@ use zapfast::{app, backend, paths, settings, single_instance};
 
 use clap::Parser;
 
+#[cfg(windows)]
+mod graphics;
+
 /// A fast, native WhatsApp client.
 #[derive(Debug, Parser)]
 #[command(name = "zapfast", version, about)]
@@ -339,12 +342,6 @@ fn run() -> eframe::Result<()> {
     #[cfg(not(feature = "demo"))]
     let custom_titlebar = settings.custom_titlebar;
     fastframe_titlebar::set_enabled(custom_titlebar);
-    // A Cargo build has no application bundle to supply its Dock icon.
-    #[cfg(target_os = "macos")]
-    if let Err(error) = fastframe_dock::set_icon(include_bytes!("../packaging/macos/icon-1024.png"))
-    {
-        log::warn!("could not set the Dock icon: {error}");
-    }
     let demo_persistence = demo.then(|| dirs.state.join("window.ron"));
 
     #[allow(unused_mut)]
@@ -494,15 +491,10 @@ fn run() -> eframe::Result<()> {
     Ok(())
 }
 
-/// Whether eframe stopped because the graphics driver gave it no usable
-/// OpenGL: no pixel format, no context of any version it asks for, or a
-/// context the renderer cannot use.
+/// Whether the Windows renderer could not initialise its adapter or surface.
 #[cfg(windows)]
 fn is_graphics_failure(error: &eframe::Error) -> bool {
-    matches!(
-        error,
-        eframe::Error::Glutin(_) | eframe::Error::NoGlutinConfigs(..) | eframe::Error::OpenGL(_)
-    )
+    matches!(error, eframe::Error::Wgpu(_))
 }
 
 /// The text of the dialog shown when ZapFast cannot start, kept apart from
@@ -510,12 +502,11 @@ fn is_graphics_failure(error: &eframe::Error) -> bool {
 #[cfg(any(windows, test))]
 fn startup_failure_text(graphics: bool, details: &str, log: &std::path::Path) -> String {
     let summary = if graphics {
-        "ZapFast could not start because the graphics driver does not offer \
-         OpenGL 2.1 or newer, which ZapFast needs to draw its window.\n\n\
-         Install the current driver from the maker of the graphics chip \
-         (Intel, AMD or NVIDIA). The Microsoft Basic Display Adapter, some \
-         virtual machines and some remote desktop sessions offer no usable \
-         OpenGL."
+        "ZapFast could not start its Direct3D 12 renderer.\n\n\
+         Install the graphics driver from the maker of the graphics chip \
+         (Intel, AMD or NVIDIA), or try software rendering by setting \
+         ZAPFAST_SOFTWARE_RENDERING=1. Software rendering requires a usable \
+         Windows WARP adapter. This build does not require OpenGL."
     } else {
         "ZapFast could not start."
     };
@@ -628,6 +619,14 @@ fn native_options(
         .with_decorations(!fastframe_titlebar::enabled());
     eframe::NativeOptions {
         viewport,
+        // Explicit even though WGPU is currently eframe's default when both
+        // features are enabled. Never fall back to OpenGL on Windows.
+        #[cfg(windows)]
+        renderer: eframe::Renderer::Wgpu,
+        #[cfg(windows)]
+        wgpu_options: graphics::configuration(
+            std::env::var_os("ZAPFAST_SOFTWARE_RENDERING").is_some_and(|value| value == "1"),
+        ),
         persistence_path: demo_persistence,
         // The settings remember the window (fastframe_shell::window::Geometry),
         // in logical pixels. eframe's own copy is in points at the zoom of the
@@ -774,11 +773,7 @@ impl Shell {
         app.window_logic(ctx);
         #[cfg(target_os = "windows")]
         if let (Some(window), Some(count)) = (frame.winit_window(), app.taskbar_badge_count())
-            && let Some(at) = self.taskbar.show(
-                window,
-                count,
-                &zapfast::notify::badge_description(count, app.locale),
-            )
+            && let Some(at) = self.taskbar.show(window, count, app.locale)
         {
             ctx.request_repaint_after(at.saturating_duration_since(std::time::Instant::now()));
         }
@@ -846,9 +841,15 @@ impl Shell {
 fn app_icon() -> egui::IconData {
     #[cfg(target_os = "macos")]
     {
-        // Fastframe sets an unbundled process's Dock icon once. A viewport
-        // icon would overwrite the packaged bundle's image on every reopen.
-        egui::IconData::default()
+        // eframe replaces the bundle's Dock icon with this viewport icon.
+        let image = image::load_from_memory(include_bytes!("../packaging/macos/icon-1024.png"))
+            .expect("bundled macOS icon")
+            .into_rgba8();
+        egui::IconData {
+            width: image.width(),
+            height: image.height(),
+            rgba: image.into_raw(),
+        }
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -1042,17 +1043,24 @@ mod tests {
 mod startup_failure_tests {
     use super::*;
 
+    #[cfg(windows)]
+    #[test]
+    fn windows_selects_wgpu_and_classifies_its_errors() {
+        let options = native_options(None, Default::default(), false);
+        assert_eq!(options.renderer, eframe::Renderer::Wgpu);
+        let error = eframe::Error::Wgpu(eframe::egui_wgpu::WgpuError::NoSurfaceFormatsAvailable);
+        assert!(is_graphics_failure(&error));
+    }
+
     #[test]
     fn a_graphics_failure_names_the_driver_requirement_and_the_details() {
         let log = std::path::Path::new("C:/zapfast/zapfast.log");
-        let text = startup_failure_text(
-            true,
-            "glutin error: extension to create ES context with wgl is not present",
-            log,
-        );
-        assert!(text.contains("OpenGL 2.1 or newer"));
+        let text = startup_failure_text(true, "No compatible DX12 adapter", log);
+        assert!(text.contains("Direct3D 12"));
         assert!(text.contains("graphics driver"));
-        assert!(text.contains("ES context with wgl is not present"));
+        assert!(text.contains("No compatible DX12 adapter"));
+        assert!(text.contains("ZAPFAST_SOFTWARE_RENDERING=1"));
+        assert!(!text.contains("OpenGL 2.1"));
         assert!(text.contains(&log.display().to_string()));
     }
 

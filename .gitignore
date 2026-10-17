@@ -9,6 +9,14 @@
 
 /dist/
 
+# Local validation and account backups never belong in the fork.
+/qa/
+/backups/
+/research/
+/app/
+/ZapFast-*.zip
+/ZapFast-*.zip.sha256
+
 /packaging/flatpak/built/
 /packaging/flatpak/cargo-sources.json
 /packaging/flatpak/flatpak-cargo-generator.py

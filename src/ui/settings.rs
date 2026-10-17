@@ -681,22 +681,30 @@ fn sections(app: &App) -> Vec<Section> {
             },
         );
     }
-    system.toggle(
-        translated(locale, "Check for updates"),
-        translated(
-            locale,
-            "Asks GitHub once a day, sending only the ZapFast version.",
-        ),
-        |settings| &mut settings.check_for_updates,
-    );
-    system.toggle(
-        translated(locale, "Download updates automatically"),
-        translated(
-            locale,
-            "You still choose when to restart. Package managers and Flatpak update ZapFast themselves.",
-        ),
-        |settings| &mut settings.download_updates_automatically,
-    );
+    if crate::updates::SELF_UPDATE_ENABLED {
+        system.toggle(
+            translated(locale, "Check for updates"),
+            translated(
+                locale,
+                "Asks GitHub once a day, sending only the ZapFast version.",
+            ),
+            |settings| &mut settings.check_for_updates,
+        );
+        system.toggle(
+            translated(locale, "Download updates automatically"),
+            translated(
+                locale,
+                "You still choose when to restart. Package managers and Flatpak update ZapFast themselves.",
+            ),
+            |settings| &mut settings.download_updates_automatically,
+        );
+    } else {
+        system.row(
+            "Updates",
+            "Updates for this compatibility build must be installed manually.",
+            |_, _| {},
+        );
+    }
     let environment = app
         .settings
         .proxy

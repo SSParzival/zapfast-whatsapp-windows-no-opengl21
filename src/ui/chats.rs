@@ -920,7 +920,7 @@ fn list(app: &mut App, ui: &mut egui::Ui) {
         results(app, ui);
         return;
     }
-    let chats: Vec<Chat> = app.visible_chats().into_iter().cloned().collect();
+    let chats = app.visible_chat_indices();
     if chats.is_empty() {
         // The favorites title is translated, so it is bound here: the tuple
         // below borrows it for this frame, and every other arm stays a literal.
@@ -960,10 +960,11 @@ fn list(app: &mut App, ui: &mut egui::Ui) {
     if to_top && near_top(ui, "chat-list", row_height) {
         scroll_area = scroll_area.vertical_scroll_offset(0.0);
     }
-    let target_row = app
-        .scroll_chat_into_view
-        .as_ref()
-        .and_then(|target| chats.iter().position(|chat| chat.id == *target));
+    let target_row = app.scroll_chat_into_view.as_ref().and_then(|target| {
+        chats
+            .iter()
+            .position(|&index| app.chats[index].id == *target)
+    });
     // The copies a narrow window's slide draws have widget ids of their own:
     // they show the real list's offset instead of keeping one.
     let copy = ui
@@ -1009,7 +1010,7 @@ fn list(app: &mut App, ui: &mut egui::Ui) {
             );
         }
         for index in range {
-            let chat = &chats[index];
+            let chat = &app.chats[chats[index]].clone();
             // Key by chat so an open menu survives list reordering.
             let response = ui
                 .push_id(("chat", &chat.id), |ui| row(app, ui, chat))
@@ -1111,7 +1112,7 @@ fn locked_entry(app: &mut App, ui: &mut egui::Ui) {
 /// The authenticated folder, including archived chats and local title search.
 fn locked_list(app: &mut App, ui: &mut egui::Ui) {
     let palette = app.palette;
-    let chats = app.visible_chats();
+    let chats = app.visible_chat_indices();
     if chats.is_empty() {
         widgets::empty_state(
             ui,
@@ -1122,15 +1123,15 @@ fn locked_list(app: &mut App, ui: &mut egui::Ui) {
         );
         return;
     }
-    let chats: Vec<Chat> = chats.into_iter().cloned().collect();
     ui.spacing_mut().item_spacing.y = 0.0;
     let mut scroll_area = egui::ScrollArea::vertical()
         .id_salt("locked-chats")
         .auto_shrink([false, false]);
-    let target_row = app
-        .scroll_chat_into_view
-        .as_ref()
-        .and_then(|target| chats.iter().position(|chat| chat.id == *target));
+    let target_row = app.scroll_chat_into_view.as_ref().and_then(|target| {
+        chats
+            .iter()
+            .position(|&index| app.chats[index].id == *target)
+    });
     if let Some(target_row) = target_row {
         let id = ui.make_persistent_id(egui::IdSalt::new("locked-chats"));
         let current = egui::scroll_area::State::load(ui.ctx(), id)
@@ -1148,7 +1149,8 @@ fn locked_list(app: &mut App, ui: &mut egui::Ui) {
         app.scroll_chat_into_view = None;
     }
     scroll_area.show_rows(ui, theme::ROW_HEIGHT, chats.len(), |ui, range| {
-        for chat in &chats[range] {
+        for &index in &chats[range] {
+            let chat = &app.chats[index].clone();
             ui.push_id(("chat", &chat.id), |ui| row(app, ui, chat));
         }
     });
@@ -1766,7 +1768,7 @@ pub(super) fn compact_list(app: &mut App, ui: &mut egui::Ui) {
         compact_locked_entry(app, ui);
         return;
     }
-    let chats: Vec<Chat> = app.visible_chats().into_iter().cloned().collect();
+    let chats = app.visible_chat_indices();
     // Exactly the height the rail gives it: egui's least scrolled height
     // would reach past the window's bottom in a short one.
     let mut scroll_area = egui::ScrollArea::vertical()
@@ -1788,7 +1790,11 @@ pub(super) fn compact_list(app: &mut App, ui: &mut egui::Ui) {
         .scroll_chat_into_view
         .as_ref()
         .filter(|_| !copy)
-        .and_then(|target| chats.iter().position(|chat| chat.id == *target));
+        .and_then(|target| {
+            chats
+                .iter()
+                .position(|&index| app.chats[index].id == *target)
+        });
     if let Some(target_row) = target_row {
         let id = ui.make_persistent_id(egui::IdSalt::new("chat-rail"));
         let current = egui::scroll_area::State::load(ui.ctx(), id)
@@ -1820,7 +1826,8 @@ pub(super) fn compact_list(app: &mut App, ui: &mut egui::Ui) {
                 egui::style::ScrollAnimation::none(),
             );
         }
-        for chat in &chats[range] {
+        for &index in &chats[range] {
+            let chat = &app.chats[index].clone();
             let response = ui
                 .push_id(("chat", &chat.id), |ui| compact_row(app, ui, chat))
                 .inner;

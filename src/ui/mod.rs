@@ -7,6 +7,10 @@ pub mod chats;
 pub mod conversation;
 pub mod dialogs;
 pub(crate) mod focus;
+#[cfg(not(windows))]
+mod glass;
+#[cfg(windows)]
+#[path = "glass_compat.rs"]
 mod glass;
 pub mod image_editor;
 pub mod image_preview;

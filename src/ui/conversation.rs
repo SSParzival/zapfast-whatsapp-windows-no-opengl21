@@ -87,7 +87,11 @@ pub fn show(app: &mut App, ui: &mut egui::Ui) {
                 // a little below it, so where they start never shows.
                 let frosted = bar.with_max_y(bar.bottom() + HEADER_TAIL);
                 let ease = HEADER_TAIL + bar.height() * HEADER_EASE;
-                ui.painter().set(glass, super::glass::shape(frosted, ease));
+                #[cfg(not(windows))]
+                let backdrop = super::glass::shape(frosted, ease);
+                #[cfg(windows)]
+                let backdrop = super::glass::shape(bar, app.palette.chat);
+                ui.painter().set(glass, backdrop);
                 ui.painter()
                     .set(veil, header_veil(&app.palette, frosted, ease));
                 bar

@@ -917,6 +917,7 @@ pub enum Command {
     },
     /// Internal pairing-code result.
     PairCode {
+        generation: u64,
         result: Result<String, String>,
     },
     /// Internal account read-receipt setting.

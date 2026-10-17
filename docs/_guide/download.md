@@ -95,10 +95,11 @@ To run {{ app }} without installing it, download a zip, extract it, and run
 - [{{ name }}-v{{ v }}-x86_64-pc-windows-msvc.zip]({{ base }}/{{ name }}-v{{ v }}-x86_64-pc-windows-msvc.zip)
 - [{{ name }}-v{{ v }}-aarch64-pc-windows-msvc.zip]({{ base }}/{{ name }}-v{{ v }}-aarch64-pc-windows-msvc.zip)
 
-{{ app }} draws with OpenGL and needs a graphics driver with OpenGL 2.1 or
-newer. Install the driver from the maker of your graphics chip: the Microsoft
-Basic Display Adapter, some virtual machines, and some remote desktop sessions
-offer no usable OpenGL, and Windows then shows a message instead of starting.
+The official downloads above use OpenGL 2.1 or newer. This local source
+variant uses WGPU with Direct3D 12 on Windows and does not create an OpenGL
+context. It has not yet been compiled or tested on a physical display.
+See [the compatibility build](../windows-compatibility.md) for its requirements
+and validation status. Linux and macOS retain their original renderer.
 
 SmartScreen may warn about an unknown publisher on first run. Choose **More
 info**, then **Run anyway**.

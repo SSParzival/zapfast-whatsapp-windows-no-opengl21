@@ -167,7 +167,9 @@ where
                 // answer can still arrive.
                 None => in_flight = 0,
             },
-            _ = tokio::time::sleep_until(next_start) => {}
+            // Once every address has started, only an answer can advance us.
+            // Re-polling an expired timer here spins while a socket is silent.
+            _ = tokio::time::sleep_until(next_start), if !exhausted => {}
         }
     }
 }
@@ -362,5 +364,29 @@ mod tests {
         assert!(message.contains(&first.to_string()), "{message}");
         assert!(message.contains(&second.to_string()), "{message}");
         assert_eq!(error.kind(), std::io::ErrorKind::ConnectionRefused);
+    }
+
+    #[tokio::test]
+    async fn silent_last_address_waits_without_continuously_waking_the_runtime() {
+        let mut dial = Box::pin(race(vec![v4(1)], Duration::from_millis(1), |_| async {
+            std::future::pending::<std::io::Result<()>>().await
+        }));
+        let mut polls = 0;
+        let result = tokio::time::timeout(
+            Duration::from_millis(50),
+            std::future::poll_fn(|cx| {
+                polls += 1;
+                dial.as_mut().poll(cx)
+            }),
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "the unanswered connection must remain pending"
+        );
+        assert!(
+            polls < 64,
+            "silent sockets caused {polls} runtime polls in 50 ms"
+        );
     }
 }

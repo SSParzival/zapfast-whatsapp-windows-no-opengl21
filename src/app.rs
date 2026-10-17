@@ -1051,9 +1051,9 @@ const TRAY_SHOW: &str = "show";
 const TRAY_LOCK: &str = "lock";
 const TRAY_QUIT: &str = "quit";
 
-/// What a tray click asks for: a left click on Linux, or the menu's first
-/// entry, toggles the window; a left click on Windows and a Dock click on
-/// macOS show it. Clicking the macOS menu-bar icon opens its menu.
+/// What a tray click asks for: a left click on Linux and macOS, or the menu's
+/// first entry, toggles the window; a left click on Windows and a Dock click
+/// on macOS show it.
 fn tray_action(event: fastframe_tray::Event, window_hidden: bool) -> Option<Action> {
     use fastframe_tray::Event;
     Some(match event {
@@ -1082,6 +1082,8 @@ fn tray_config(lockable: bool) -> fastframe_tray::Config {
         // The tray icon is the app icon, so hosts that draw only named icons
         // may use the installed one.
         themed_icon: true,
+        // A left click on macOS toggles the window, as on Linux.
+        menu_on_click: false,
         menu: vec![
             MenuItem::action(TRAY_SHOW, "Show or hide ZapFast"),
             MenuItem::action(TRAY_LOCK, "Lock ZapFast").visible(lockable),
@@ -1150,9 +1152,7 @@ impl App {
         let mut app = Self::with_accounts(dirs, settings, roster, accounts, active, waker.clone());
         app.pauses_media = true;
         app.call_tones = crate::call_tones::Tones::new(true);
-        app.badge = Some(crate::notify::Badge::new(fastframe_desktop::desktop_entry(
-            "zapfast",
-        )));
+        app.badge = Some(Default::default());
         app.custom_themes
             .enable_desktop_themes(crate::theme::DESKTOP_THEMES);
         app.load_custom_themes();
@@ -2811,15 +2811,27 @@ impl App {
     /// with pinned chats first.
     /// Locked chats only appear inside the locked folder.
     pub fn visible_chats(&self) -> Vec<&Chat> {
+        self.visible_chat_indices()
+            .into_iter()
+            .map(|index| &self.chats[index])
+            .collect()
+    }
+
+    /// Ordered rows for one frame. Views clone only the rows their viewport
+    /// draws, rather than every chat's preview and group-member metadata.
+    /// Indices must not outlive a change to the active account's chat vector;
+    /// views queue those changes as actions, applied after drawing.
+    pub(crate) fn visible_chat_indices(&self) -> Vec<usize> {
         let needle = crate::util::search_key(self.search.trim());
         let locked = self.locked_folder_open();
         let filtering = !locked && needle.is_empty() && !self.show_archived;
-        let mut chats: Vec<&Chat> = self
+        let mut chats: Vec<usize> = self
             .chats
             .iter()
-            .filter(|chat| chat.locked == locked)
-            .filter(|chat| locked || chat.archived == self.show_archived || !needle.is_empty())
-            .filter(|chat| match &self.label_filter {
+            .enumerate()
+            .filter(|(_, chat)| chat.locked == locked)
+            .filter(|(_, chat)| locked || chat.archived == self.show_archived || !needle.is_empty())
+            .filter(|(_, chat)| match &self.label_filter {
                 // A label lists every chat wearing it, channels included,
                 // because someone put each of them there.
                 _ if !filtering => true,
@@ -2830,7 +2842,7 @@ impl App {
                             && self.unread_kept.contains(&chat.id))
                 }
             })
-            .filter(|chat| {
+            .filter(|(_, chat)| {
                 // Inside the locked folder the typed text is the secret code,
                 // not a query to match.
                 (self.locked_folder && !self.chat_lock_authenticated())
@@ -2841,10 +2853,13 @@ impl App {
                         crate::util::search_key(&last.summary).contains(&needle)
                     })
             })
+            .map(|(index, _)| index)
             .collect();
         // The Favorites chip keeps the phone's order below the pinned chats.
         let favorites_order = self.favorites_order();
-        chats.sort_by(|a, b| {
+        chats.sort_by(|&a, &b| {
+            let a = &self.chats[a];
+            let b = &self.chats[b];
             b.pinned.cmp(&a.pinned).then_with(|| {
                 if a.pinned && b.pinned {
                     b.pinned_at.cmp(&a.pinned_at).then(a.id.cmp(&b.id))
@@ -2873,15 +2888,18 @@ impl App {
     /// Matching individual contacts without an existing chat, sorted by name.
     pub fn matching_contacts(&self) -> Vec<&Contact> {
         let needle = crate::util::search_key(self.search.trim());
-        if needle.is_empty() {
+        if needle.is_empty() || self.contacts.is_empty() {
             return Vec::new();
         }
+        // Rebuild from this account each search: no cache to invalidate when
+        // history arrives, a chat is deleted, or the active account changes.
+        let existing: HashSet<&str> = self.chats.iter().map(|chat| chat.id.as_str()).collect();
         let mut contacts: Vec<&Contact> = self
             .contacts
             .values()
             .filter(|contact| crate::model::phone_of(&contact.id).is_some())
             .filter(|contact| self.me.as_deref() != Some(contact.id.as_str()))
-            .filter(|contact| !self.chats.iter().any(|chat| chat.id == contact.id))
+            .filter(|contact| !existing.contains(contact.id.as_str()))
             .filter(|contact| {
                 contact
                     .display_name()
@@ -5636,7 +5654,8 @@ impl App {
         self.toasts.retain(|toast| {
             toast.kind == ToastKind::Error || toast.created.elapsed() < INFO_TOAST_LIFETIME
         });
-        if self.settings.check_for_updates
+        if crate::updates::SELF_UPDATE_ENABLED
+            && self.settings.check_for_updates
             && !self.backend.is_offline()
             && self
                 .last_update_check
@@ -5696,10 +5715,12 @@ impl App {
     }
 
     fn download_update(&mut self) {
-        if !matches!(
-            self.update_download,
-            crate::updates::DownloadState::Idle | crate::updates::DownloadState::Failed(_)
-        ) || !matches!(self.update_support, Some(Ok(_)))
+        if !crate::updates::SELF_UPDATE_ENABLED
+            || !matches!(
+                self.update_download,
+                crate::updates::DownloadState::Idle | crate::updates::DownloadState::Failed(_)
+            )
+            || !matches!(self.update_support, Some(Ok(_)))
         {
             return;
         }
@@ -7922,10 +7943,12 @@ impl App {
             Action::CloseUpdate => self.show_update = false,
             Action::DownloadUpdate => self.download_update(),
             Action::InstallUpdate => {
-                if matches!(
-                    self.update_download,
-                    crate::updates::DownloadState::Ready(_)
-                ) {
+                if crate::updates::SELF_UPDATE_ENABLED
+                    && matches!(
+                        self.update_download,
+                        crate::updates::DownloadState::Ready(_)
+                    )
+                {
                     let crate::updates::DownloadState::Ready(prepared) = std::mem::replace(
                         &mut self.update_download,
                         crate::updates::DownloadState::Installing,
@@ -14779,6 +14802,17 @@ mod tests {
         assert!(matches!(app.update_download, DownloadState::Idle));
         app.settings.download_updates_automatically = true;
         app.maybe_download_update();
+        if !crate::updates::SELF_UPDATE_ENABLED {
+            assert!(matches!(app.update_download, DownloadState::Idle));
+            app.apply(Action::DownloadUpdate, &ctx);
+            assert!(matches!(app.update_download, DownloadState::Idle));
+            app.update_download =
+                DownloadState::Ready(Box::new(Prepared::sample(installation, "99.0.0")));
+            app.apply(Action::InstallUpdate, &ctx);
+            assert!(matches!(app.update_download, DownloadState::Ready(_)));
+            assert!(!app.quit_requested);
+            return;
+        }
         assert!(matches!(
             app.update_download,
             DownloadState::Downloading { .. }
@@ -19487,6 +19521,143 @@ mod tests {
         app.apply(Action::SetChatFilter(ChatFilter::All), &ctx);
         assert!(!app.show_archived, "choosing a filter leaves the archive");
         assert_eq!(names(&app), ["Ada"]);
+    }
+
+    #[test]
+    fn visible_chat_indices_follow_reordering_and_current_metadata() {
+        let mut app = app();
+        let mut first = Chat::new("1@s.whatsapp.net".into(), "First".into());
+        first.last_activity = 20;
+        let mut second = Chat::new("2@s.whatsapp.net".into(), "Second".into());
+        second.last_activity = 10;
+        app.chats = vec![second, first];
+        assert_eq!(app.visible_chat_indices(), [1, 0]);
+        app.chats.swap(0, 1);
+        app.chats[1].last_activity = 30;
+        app.chats[1].name = "Updated".into();
+        assert_eq!(app.visible_chat_indices(), [1, 0]);
+        assert_eq!(app.chats[app.visible_chat_indices()[0]].name, "Updated");
+        app.chats[1].locked = true;
+        assert_eq!(app.visible_chat_indices(), [0]);
+        app.chats.remove(0);
+        assert!(app.visible_chat_indices().is_empty());
+    }
+
+    #[test]
+    fn contact_search_refreshes_existing_chats_without_a_stale_index() {
+        let mut app = app();
+        let id = "15550000001@s.whatsapp.net";
+        app.contacts.insert(
+            id.into(),
+            Contact {
+                id: id.into(),
+                full_name: Some("Synthetic contact".into()),
+                first_name: None,
+                push_name: None,
+            },
+        );
+        app.search = "synthetic".into();
+        assert_eq!(app.matching_contacts().len(), 1);
+        let mut chat = Chat::new(id.into(), "Synthetic contact".into());
+        chat.locked = true;
+        chat.archived = true;
+        app.chats.push(chat);
+        assert!(
+            app.matching_contacts().is_empty(),
+            "hidden chats are existing chats too"
+        );
+        app.chats.clear();
+        assert_eq!(
+            app.matching_contacts().len(),
+            1,
+            "deletion immediately restores the contact"
+        );
+    }
+
+    /// An offline microbenchmark, deliberately outside the timed test suite.
+    /// Compares the old full snapshot with viewport-only copies using the same
+    /// selection in one binary. Timings are evidence, never pass/fail limits.
+    #[test]
+    #[ignore = "synthetic performance measurement; run explicitly with --nocapture"]
+    fn synthetic_chat_list_performance() {
+        use std::hint::black_box;
+        fn median(mut run: impl FnMut()) -> f64 {
+            let mut samples = Vec::new();
+            for _ in 0..17 {
+                let start = Instant::now();
+                run();
+                samples.push(start.elapsed());
+            }
+            samples.sort_unstable();
+            samples[samples.len() / 2].as_secs_f64() * 1_000_000.0
+        }
+        let mut app = app();
+        for count in [100, 1_000, 10_000] {
+            app.chats = (0..count)
+                .map(|index| {
+                    let mut chat = Chat::new(
+                        format!("synthetic-{index}@g.us"),
+                        format!("Synthetic {index}"),
+                    );
+                    chat.last_activity = (index * 7919 % count) as i64;
+                    chat.participants = (0..24)
+                        .map(|member| format!("synthetic-member-{member}@lid"))
+                        .collect();
+                    chat.group_description = Some("Synthetic group metadata. ".repeat(40));
+                    chat
+                })
+                .collect();
+            let old = || {
+                let rows: Vec<Chat> = app.visible_chats().into_iter().cloned().collect();
+                black_box(rows);
+            };
+            let new = || {
+                let indices = app.visible_chat_indices();
+                let rows: Vec<Chat> = indices
+                    .iter()
+                    .take(12)
+                    .map(|&index| app.chats[index].clone())
+                    .collect();
+                black_box((indices, rows));
+            };
+            old();
+            new();
+            let old_us = median(old);
+            let new_us = median(new);
+            println!(
+                "snapshot chats={count} visible=12 old_us={old_us:.2} new_us={new_us:.2} speedup={:.2}",
+                old_us / new_us
+            );
+
+            let contacts: Vec<String> = (0..count)
+                .map(|index| format!("synthetic-{}@g.us", index * 2))
+                .collect();
+            let old = || {
+                contacts
+                    .iter()
+                    .filter(|id| !app.chats.iter().any(|chat| chat.id == **id))
+                    .count()
+            };
+            let new = || {
+                let existing: HashSet<&str> =
+                    app.chats.iter().map(|chat| chat.id.as_str()).collect();
+                contacts
+                    .iter()
+                    .filter(|id| !existing.contains(id.as_str()))
+                    .count()
+            };
+            assert_eq!(old(), new());
+            let old_us = median(|| {
+                black_box(old());
+            });
+            let new_us = median(|| {
+                black_box(new());
+            });
+            println!(
+                "contact_membership chats={count} contacts={count} old_us={old_us:.2} new_us={new_us:.2} speedup={:.2}",
+                old_us / new_us
+            );
+        }
     }
 
     #[test]
